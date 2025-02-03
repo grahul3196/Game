@@ -15,6 +15,9 @@ let timer = { white: 600, black: 600 }; // 10 minutes in seconds
 let interval;
 let selectedPiece = null;
 
+// Three.js variables
+let scene, camera, renderer, board;
+
 player1NameInput.addEventListener('input', () => {
     player1Name = player1NameInput.value || 'Player 1';
 });
@@ -60,110 +63,61 @@ function updateTimerDisplay() {
 }
 
 function createBoard() {
+    // Clear the chessboard
     while (chessboard.firstChild) {
         chessboard.removeChild(chessboard.firstChild);
     }
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer();
+    // Initialize Three.js scene
+    scene = new THREE.Scene();
+
+    // Set up camera
+    camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+    camera.position.set(0, 10, 10);
+    camera.lookAt(0, 0, 0);
+
+    // Set up renderer
+    renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(640, 640);
     chessboard.appendChild(renderer.domElement);
 
-    const light = new THREE.AmbientLight(0x404040);
-    scene.add(light);
+    // Add lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+    directionalLight.position.set(5, 10, 5);
     scene.add(directionalLight);
 
+    // Create chessboard
     const boardGeometry = new THREE.BoxGeometry(8, 0.1, 8);
-    const boardMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
-    const board = new THREE.Mesh(boardGeometry, boardMaterial);
+    const boardMaterial = new THREE.MeshPhongMaterial({ color: 0x8b4513 });
+    board = new THREE.Mesh(boardGeometry, boardMaterial);
     scene.add(board);
 
-    camera.position.z = 10;
+    // Add chess pieces
+    const pieceGeometry = new THREE.CylinderGeometry(0.5, 0.5, 1, 32);
+    const whiteMaterial = new THREE.MeshPhongMaterial({ color: 0xffffff });
+    const blackMaterial = new THREE.MeshPhongMaterial({ color: 0x000000 });
 
+    for (let i = 0; i < 8; i++) {
+        for (let j = 0; j < 8; j++) {
+            const piece = chess.board()[i][j];
+            if (piece) {
+                const pieceMesh = new THREE.Mesh(pieceGeometry, piece.color === 'w' ? whiteMaterial : blackMaterial);
+                pieceMesh.position.set(j - 3.5, 0.6, i - 3.5);
+                scene.add(pieceMesh);
+            }
+        }
+    }
+
+    // Render loop
     function animate() {
         requestAnimationFrame(animate);
         renderer.render(scene, camera);
     }
 
     animate();
-}
-
-function handleSquareClick(event) {
-    const square = event.target;
-    const row = parseInt(square.dataset.row);
-    const col = parseInt(square.dataset.col);
-    const position = String.fromCharCode(97 + col) + (8 - row);
-
-    if (selectedPiece) {
-        const move = chess.move({
-            from: selectedPiece.dataset.position,
-            to: position,
-            promotion: 'q' // Always promote to a queen for simplicity
-        });
-
-        if (move) {
-            updateBoard();
-            switchTurn();
-            playMoveSound();
-            if (chess.in_checkmate()) {
-                alert(`${currentTurn === 'white' ? player2Name : player1Name} wins by checkmate!`);
-                updateScore(currentTurn === 'white' ? 'black' : 'white');
-                resetGame();
-            } else if (chess.in_stalemate()) {
-                alert('Stalemate!');
-                resetGame();
-            }
-        }
-
-        selectedPiece.classList.remove('selected');
-        selectedPiece = null;
-    } else {
-        if (chess.get(position) && chess.get(position).color === currentTurn[0]) {
-            selectedPiece = square;
-            selectedPiece.classList.add('selected');
-        }
-    }
-}
-
-function updateBoard() {
-    const board = chess.board();
-    for (let i = 0; i < 8; i++) {
-        for (let j = 0; j < 8; j++) {
-            const square = document.querySelector(`[data-row="${i}"][data-col="${j}"]`);
-            const piece = board[i][j];
-            square.textContent = piece ? pieceToUnicode(piece) : '';
-        }
-    }
-}
-
-function pieceToUnicode(piece) {
-    const unicodePieces = {
-        p: '♟', r: '♜', n: '♞', b: '♝', q: '♛', k: '♚',
-        P: '♙', R: '♖', N: '♘', B: '♗', Q: '♕', K: '♔'
-    };
-    return unicodePieces[piece.type];
-}
-
-function switchTurn() {
-    currentTurn = currentTurn === 'white' ? 'black' : 'white';
-    currentTurnDisplay.textContent = currentTurn.charAt(0).toUpperCase() + currentTurn.slice(1);
-}
-
-function updateScore(winner) {
-    if (winner === 'white') {
-        score.white++;
-    } else {
-        score.black++;
-    }
-    scoreDisplay.textContent = `${score.white} - ${score.black}`;
-}
-
-function playMoveSound() {
-    const audio = new Audio('move_sound.mp3');
-    audio.play();
 }
 
 createBoard();
